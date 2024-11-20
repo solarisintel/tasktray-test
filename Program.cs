@@ -49,6 +49,8 @@ class Launcher : Form
 
     FileSystemWatcher watcher;
 
+    static NotifyIcon icon; // task tray icon
+
     System.Timers.Timer appTimer;
 
     public Launcher()
@@ -88,10 +90,12 @@ class Launcher : Form
 
     private void setComponents()
     {
-        NotifyIcon icon = new NotifyIcon();
+        icon = new NotifyIcon();
         icon.Icon = new Icon("app.ico");
         icon.Visible = true;
         icon.Text = "常駐アプリテスト";
+
+
         ContextMenuStrip menu = new ContextMenuStrip();
         ToolStripMenuItem menuItem = new ToolStripMenuItem();
 
@@ -135,8 +139,8 @@ class Launcher : Form
         // タイマスタート
         appTimer.Start();
 
-
-        watcher = new FileSystemWatcher(Environment.GetEnvironmentVariable("USERPROFILE") + "\\Downloads");
+        string downloadFoler = Environment.GetEnvironmentVariable("USERPROFILE") + @"\Downloads";
+        watcher = new FileSystemWatcher(downloadFoler);
         // 監視パラメータの設定
         watcher.NotifyFilter = (NotifyFilters.LastWrite
             | NotifyFilters.FileName
@@ -149,11 +153,36 @@ class Launcher : Form
 
         // サブディレクトリは監視しない
         watcher.IncludeSubdirectories = false;
+
+        // 監視するファイルの種類
+        watcher.Filter = "*.txt";
+
         // イベントハンドラの設定
         watcher.Created += new FileSystemEventHandler(watcher_Created);
+        watcher.Error += new ErrorEventHandler(watcher_Error);
+        watcher.Deleted += new FileSystemEventHandler(watcher_Deleted);
+        watcher.Renamed += new RenamedEventHandler(watcher_Renamed);
+
+        //WindowFormなどUI用(コンソールでは不要)
+        watcher.SynchronizingObject = this;
+
+        //監視を開始する
+        watcher.EnableRaisingEvents = true;
+
 
         File.AppendAllText(logFilePath, GetNowTime() + "start\n");
 
+
+        //バルーンヒントの設定
+        //バルーンヒントのタイトル
+        icon.BalloonTipTitle = "お知らせ";
+        //バルーンヒントに表示するメッセージ
+        icon.BalloonTipText = "常駐開始しました";
+        //バルーンヒントに表示するアイコン
+        icon.BalloonTipIcon = ToolTipIcon.Info;
+        //バルーンヒントを表示する
+        //表示する時間をミリ秒で指定する
+        icon.ShowBalloonTip(10000);
 
     }
 
@@ -162,6 +191,39 @@ class Launcher : Form
         string fileName;
         fileName = e.Name;
         File.AppendAllText(logFilePath, GetNowTime() + "created " + fileName + "\n");
+
+        //バルーンヒントの設定
+        //バルーンヒントのタイトル
+        icon.BalloonTipTitle = "お知らせ";
+        //バルーンヒントに表示するメッセージ
+        icon.BalloonTipText = "ダウンロードされました";
+        //バルーンヒントに表示するアイコン
+        icon.BalloonTipIcon = ToolTipIcon.Info;
+        //バルーンヒントを表示する
+        //表示する時間をミリ秒で指定する
+        icon.ShowBalloonTip(10000);
+
+
+
+    }
+
+    private void watcher_Changed(object sender, FileSystemEventArgs e)
+    {
+        //tbMessage.Text += "Changed" + e.Name + Environment.NewLine;
+    }
+    private void watcher_Error(object sender, ErrorEventArgs e)
+    {
+        //tbMessage.Text += "Error" + e.GetException().Message + Environment.NewLine;
+    }
+
+    private void watcher_Deleted(object sender, FileSystemEventArgs e)
+    {
+        //tbMessage.Text += "Deleted" + e.Name + Environment.NewLine;
+    }
+
+    private void watcher_Renamed(object sender, RenamedEventArgs e)
+    {
+        //tbMessage.Text += "Renamed" + e.Name + Environment.NewLine;
     }
 
     // ログファイル用
@@ -183,14 +245,17 @@ class Launcher : Form
                 var content = new FormUrlEncodedContent(parameters);
                 var res = await client.PostAsync(url, content);
                 // 取得
-                if (transferStep == 0) { 
+                if (transferStep == 0)
+                {
                     serverResponseString1 = await res.Content.ReadAsStringAsync();
-                    Console.WriteLine("Reponse String=" +  serverResponseString1);
+                    Console.WriteLine("Reponse String=" + serverResponseString1);
                     if (serverResponseString1.Substring(0, 2) == "OK")
                     {
                         transferStep = 1;
                     }
-                } else if (transferStep == 1) {
+                }
+                else if (transferStep == 1)
+                {
                     serverResponseString2 = await res.Content.ReadAsStringAsync();
                     Console.WriteLine("Reponse String=" + serverResponseString1);
                     if (serverResponseString2.Substring(0, 2) == "OK")
@@ -229,6 +294,11 @@ class Launcher : Form
         {
             File.AppendAllText(logFilePath, GetNowTime() + "shutdown\n");
         }
+
+        //監視を終了
+        watcher.EnableRaisingEvents = false;
+        watcher.Dispose();
+        watcher = null;
     }
 
     private static void OnTimerElapsed(object sender, ElapsedEventArgs e)
@@ -255,7 +325,8 @@ class Launcher : Form
             {
                 string fileName = Path.GetFileName(file);
                 // 今作成中のログファイルでなければすべて読み込む
-                if (fileName != logFileName) {
+                if (fileName != logFileName)
+                {
                     readingLogFilePath = file;
                     var logText = File.ReadAllText(readingLogFilePath, Encoding.GetEncoding("shift-jis"));
                     Console.WriteLine($"{DateTime.Now} log" + logText);
