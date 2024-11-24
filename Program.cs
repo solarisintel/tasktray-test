@@ -51,6 +51,8 @@ class Launcher : Form
 
     static NotifyIcon icon; // task tray icon
 
+    static string prevDownloadFile = "";
+
     System.Timers.Timer appTimer;
 
     public Launcher()
@@ -152,7 +154,8 @@ class Launcher : Form
         watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size;
 
         // イベントハンドラの設定
-        watcher.Created += new FileSystemEventHandler(watcher_Created);
+        //watcher.Created += new FileSystemEventHandler(watcher_Created);
+        watcher.Changed += new FileSystemEventHandler(watcher_Renamed);
         watcher.Error += new ErrorEventHandler(watcher_Error);
 
         //WindowFormなどUI用(コンソールでは不要)
@@ -179,26 +182,35 @@ class Launcher : Form
     }
 
 
-    static void watcher_Created(object source, FileSystemEventArgs e)
+    static void watcher_Renamed(object source, FileSystemEventArgs e)
     {
+
+        // ダウンロードの時って.tmpから正常なファイル拡張子に変更される, 2回発生する
         string fileName;
         fileName = e.Name;
 
-        Console.WriteLine("called watcher_Created file=" + fileName);
+        if (Path.GetExtension(fileName) == ".txt" || Path.GetExtension(fileName) == ".exe") {
 
+            if (prevDownloadFile != fileName)
+            {
+                Console.WriteLine("called watcher_Created file=" + fileName);
 
-        File.AppendAllText(logFilePath, GetNowTime() + "created " + fileName + "\n");
+                File.AppendAllText(logFilePath, GetNowTime() + "created " + fileName + "\n");
 
-        //バルーンヒントの設定
-        //バルーンヒントのタイトル
-        icon.BalloonTipTitle = "お知らせ";
-        //バルーンヒントに表示するメッセージ
-        icon.BalloonTipText = "ダウンロードされました";
-        //バルーンヒントに表示するアイコン
-        icon.BalloonTipIcon = ToolTipIcon.Info;
-        //バルーンヒントを表示する
-        //表示する時間をミリ秒で指定する
-        icon.ShowBalloonTip(10000);
+                //バルーンヒントの設定
+                //バルーンヒントのタイトル
+                icon.BalloonTipTitle = "お知らせ";
+                //バルーンヒントに表示するメッセージ
+                icon.BalloonTipText = "ダウンロードされました";
+                //バルーンヒントに表示するアイコン
+                icon.BalloonTipIcon = ToolTipIcon.Info;
+                //バルーンヒントを表示する
+                //表示する時間をミリ秒で指定する
+                icon.ShowBalloonTip(10000);
+            }
+        }
+        prevDownloadFile = fileName;
+
     }
     static void watcher_Error(object source, ErrorEventArgs e)
     {
