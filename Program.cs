@@ -37,7 +37,7 @@ class Launcher : Form
     static string userName;
     static string logFileName;
     static string logPath;
-    string logFilePath;
+    static string logFilePath;
     static int transferStep = 0; // 0: Send ComputerName+SessionUser, 1: send app log
 
     static string serverResponseString1;
@@ -47,7 +47,7 @@ class Launcher : Form
     static string postURL2 = "https://pochi.mydns.jp/post2/index.php";
     static string readingLogFilePath;
 
-    FileSystemWatcher watcher;
+    static FileSystemWatcher watcher;
 
     static NotifyIcon icon; // task tray icon
 
@@ -139,29 +139,21 @@ class Launcher : Form
         // タイマスタート
         appTimer.Start();
 
-        string downloadFoler = Environment.GetEnvironmentVariable("USERPROFILE") + @"\Downloads";
-        watcher = new FileSystemWatcher(downloadFoler);
+        string downloadFolder = Environment.GetEnvironmentVariable("USERPROFILE") + @"\Downloads";
+
+        Console.WriteLine("watch folder=" + downloadFolder);
+
+        watcher = new FileSystemWatcher();
+
+        watcher.Path = downloadFolder;
+        watcher.Filter = "*.*";  // これだとうまく動作する
+        watcher.IncludeSubdirectories = true;
         // 監視パラメータの設定
-        watcher.NotifyFilter = (NotifyFilters.LastWrite
-            | NotifyFilters.FileName
-            | NotifyFilters.DirectoryName
-            | NotifyFilters.Attributes
-            | NotifyFilters.CreationTime
-            | NotifyFilters.Size
-            | NotifyFilters.LastAccess
-            | NotifyFilters.Security);
-
-        // サブディレクトリは監視しない
-        watcher.IncludeSubdirectories = false;
-
-        // 監視するファイルの種類
-        watcher.Filter = "*.txt";
+        watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size;
 
         // イベントハンドラの設定
         watcher.Created += new FileSystemEventHandler(watcher_Created);
         watcher.Error += new ErrorEventHandler(watcher_Error);
-        watcher.Deleted += new FileSystemEventHandler(watcher_Deleted);
-        watcher.Renamed += new RenamedEventHandler(watcher_Renamed);
 
         //WindowFormなどUI用(コンソールでは不要)
         watcher.SynchronizingObject = this;
@@ -186,10 +178,15 @@ class Launcher : Form
 
     }
 
-    private void watcher_Created(object sender, FileSystemEventArgs e)
+
+    static void watcher_Created(object source, FileSystemEventArgs e)
     {
         string fileName;
         fileName = e.Name;
+
+        Console.WriteLine("called watcher_Created file=" + fileName);
+
+
         File.AppendAllText(logFilePath, GetNowTime() + "created " + fileName + "\n");
 
         //バルーンヒントの設定
@@ -202,32 +199,14 @@ class Launcher : Form
         //バルーンヒントを表示する
         //表示する時間をミリ秒で指定する
         icon.ShowBalloonTip(10000);
-
-
-
     }
-
-    private void watcher_Changed(object sender, FileSystemEventArgs e)
+    static void watcher_Error(object source, ErrorEventArgs e)
     {
-        //tbMessage.Text += "Changed" + e.Name + Environment.NewLine;
-    }
-    private void watcher_Error(object sender, ErrorEventArgs e)
-    {
-        //tbMessage.Text += "Error" + e.GetException().Message + Environment.NewLine;
-    }
-
-    private void watcher_Deleted(object sender, FileSystemEventArgs e)
-    {
-        //tbMessage.Text += "Deleted" + e.Name + Environment.NewLine;
-    }
-
-    private void watcher_Renamed(object sender, RenamedEventArgs e)
-    {
-        //tbMessage.Text += "Renamed" + e.Name + Environment.NewLine;
+        Console.WriteLine("called watcher Error");
     }
 
     // ログファイル用
-    private string GetNowTime()
+    private static string GetNowTime()
     {
         DateTime dt = DateTime.Now;
         return dt.ToString("yyyy/MM/dd HH:mm:ss ");
